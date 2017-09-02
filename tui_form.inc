@@ -685,7 +685,7 @@ tui_form$ontab:
 	je	.nothingtodo
 	mov	rsi, [rdi+tui_form_focus_ofs]
 	mov	rax, [rsi+_list_nextofs]
-	or	rcx, [rsi+_list_prevofs]
+	or	rax, [rsi+_list_prevofs]
 	jz	.nothingtodo
 	push	rdi rsi
 	mov	rdi, [rsi+_list_valueofs]
@@ -720,7 +720,7 @@ tui_form$onshifttab:
 	je	.nothingtodo
 	mov	rsi, [rdi+tui_form_focus_ofs]
 	mov	rax, [rsi+_list_nextofs]
-	or	rcx, [rsi+_list_prevofs]
+	or	rax, [rsi+_list_prevofs]
 	jz	.nothingtodo
 	push	rdi rsi
 	mov	rdi, [rsi+_list_valueofs]

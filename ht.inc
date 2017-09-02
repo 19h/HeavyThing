@@ -113,6 +113,9 @@ ht$codeseg = $
 	else
 		include 'string16.inc'
 	end if
+
+	include 'debug_macros.inc'
+
 	include 'dir.inc'
 
 	include 'json.inc'
@@ -150,6 +153,7 @@ ht$codeseg = $
 	include 'aes.inc'
 	include 'htcrypt.inc'
 	include 'htxts.inc'
+	include 'aesxts.inc'
 
 	include 'file.inc'
 
@@ -163,6 +167,10 @@ ht$codeseg = $
 	include 'bigint.inc'
 	include 'dh_pool.inc'
 	include 'X509.inc'
+
+	include 'mtree.inc'
+	include 'fileshadow.inc'
+	include 'mtree_aesxts.inc'
 
 	include 'curve25519.inc'
 	include 'ed25519.inc'
@@ -211,6 +219,8 @@ ht$codeseg = $
 	include 'webserver.inc'
 	include 'cookiejar.inc'
 	include 'webclient.inc'
+
+	include 'maxmind.inc'
 
 if used argc | defined include_everything
 
@@ -337,7 +347,7 @@ calign
 	if profiling
 		call	profiler$init
 	end if
-	if used heap$alloc | used heap$free | defined include_everything
+	if used heap$alloc | used heap$free | used heap$alloc_clear | defined include_everything
 		call	heap$init
 	end if
 	if used is_Intel | used has_SSE3 | used has_SSSE3 | used has_SSE41 | used has_SSE42 | used has_POPCNT | used has_AVX | used has_AESNI | used cpu_L1_size | defined include_everything

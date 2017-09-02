@@ -99,7 +99,7 @@ master_ui:
 	pop	r13 r12 rbx
 
 	epilog
-cleartext .statustext, 'webslap v1.16 ',0xa9, ' 2015, 2016 2 Ton Digital'
+cleartext .statustext, 'webslap v1.19 ',0xa9, ' 2015, 2016 2 Ton Digital'
 cleartext .ctrlctext, 'C-c - Exit'
 cleartext .waitstring, 'Waiting for results...'
 

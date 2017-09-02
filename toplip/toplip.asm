@@ -3454,7 +3454,7 @@ dalign
 
 
 
-cleartext banner, 'This is toplip v1.16 ',0xa9,' 2015, 2016 2 Ton Digital. Author: Jeff Marrison',10,'A showcase piece for the HeavyThing library. Commercial support available',10,'Proudly made in Cooroy, Australia. More info: https://2ton.com.au/toplip',10
+cleartext banner, 'This is toplip v1.19 ',0xa9,' 2015, 2016 2 Ton Digital. Author: Jeff Marrison',10,'A showcase piece for the HeavyThing library. Commercial support available',10,'Proudly made in Cooroy, Australia. More info: https://2ton.com.au/toplip',10
 
 falign
 public _start

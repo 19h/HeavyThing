@@ -69,6 +69,7 @@ heapdebug = 0
 	; 
 	; we need two global variables that are writeable for our heap:
 
+
 if used heap$init | defined include_everything
 
 globals
@@ -95,9 +96,9 @@ heap$init:
 	; update, the return from here we are interested in is NOT a -1
 	; it is ENOMEM, which is -12
 	cmp	rax, -12
-	je	.trysmaller_2g
+	je	.trysmaller_loop
 	cmp	rax, -1
-	je	.trysmaller_2g
+	je	.trysmaller_loop
 	mov	rdi, rax	; setup call to mremap
 	mov	rsi, 2147483648	; old size
 	mov	edx, 139272 + (heap_bincheck * 8)	; new size
@@ -111,10 +112,16 @@ heap$init:
 	mov	[_heap_base_size], 139272 + (heap_bincheck * 8)
 	epilog
 calign
-.trysmaller_2g:
+.trysmaller_loop:
+	push	rbx
+	mov	rbx, 2147483648
+	shl	rbx, 3
+	sub	rbx, 256 * 1048576
+calign
+.trysmaller_attempt:
 	mov	eax, syscall_mmap
 	xor	edi, edi
-	mov	rsi, 2147483648
+	mov	rsi, rbx
 	mov	edx, 0x3
 	mov	r10d, 0x22
 	mov	r8, -1
@@ -122,11 +129,11 @@ calign
 	syscall
 	mov	[_heap_base], rax
 	cmp	rax, -12
-	je	.trysmaller_1g
+	je	.trysmaller_again
 	cmp	rax, -1
-	je	.trysmaller_1g
+	je	.trysmaller_again
 	mov	rdi, rax	; setup call to mremap
-	mov	rsi, 2147483648	; old size
+	mov	rsi, rbx	; old size
 	mov	edx, 139272 + (heap_bincheck * 8)	; new size
 	xor	r10d, r10d
 	mov	eax, syscall_mremap
@@ -135,87 +142,13 @@ calign
 	cmp	rax, -1
 	je	.die
 	mov	[_heap_base_size], 139272 + (heap_bincheck * 8)
+	pop	rbx
 	epilog
 calign
-.trysmaller_1g:
-	mov	eax, syscall_mmap
-	xor	edi, edi
-	mov	rsi, 1073741824
-	mov	edx, 0x3
-	mov	r10d, 0x22
-	mov	r8, -1
-	xor	r9d, r9d
-	syscall
-	mov	[_heap_base], rax
-	cmp	rax, -12
-	je	.trysmallerstill
-	cmp	rax, -1
-	je	.trysmallerstill
-	mov	rdi, rax	; setup call to mremap
-	mov	rsi, 1073741824 ; old size
-	mov	edx, 139272 + (heap_bincheck * 8)	; new size
-	xor	r10d, r10d
-	mov	eax, syscall_mremap
-	syscall
-	mov	[_heap_base], rax
-	cmp	rax, -1
-	je	.die
-	mov	[_heap_base_size], 139272 + (heap_bincheck * 8)
-	epilog
-calign
-.trysmallerstill:
-	mov	eax, syscall_mmap
-	xor	edi, edi
-	mov	rsi, 536870912
-	mov	edx, 0x3
-	mov	r10d, 0x22
-	mov	r8, -1
-	xor	r9d, r9d
-	syscall
-	mov	[_heap_base], rax
-	cmp	rax, -12
-	je	.try256MB
-	cmp	rax, -1
-	je	.try256MB
-	mov	rdi, rax	; setup call to mremap
-	mov	rsi, 536870912	; old size
-	mov	edx, 139272 + (heap_bincheck * 8)	; new size
-	xor	r10d, r10d
-	mov	eax, syscall_mremap
-	syscall
-	mov	[_heap_base], rax
-	cmp	rax, -1
-	je	.die
-	mov	[_heap_base_size], 139272 + (heap_bincheck * 8)
-	epilog
-calign
-.try256MB:
-	mov	eax, syscall_mmap
-	xor	edi, edi
-	mov	rsi, 268435456
-	mov	edx, 0x3
-	mov	r10d, 0x22
-	mov	r8, -1
-	xor	r9d, r9d
-	syscall
-	mov	[_heap_base], rax
-	cmp	rax, -12
-	je	.die
-	cmp	rax, -1
-	je	.die
-	mov	rdi, rax	; setup call to mremap
-	mov	rsi, 268435456	; old size
-	mov	edx, 139272 + (heap_bincheck * 8)	; new size
-	xor	r10d, r10d
-	mov	eax, syscall_mremap
-	syscall
-	mov	[_heap_base], rax
-	cmp	rax, -1
-	je	.die
-	mov	[_heap_base_size], 139272 + (heap_bincheck * 8)
-	epilog
-	
-
+.trysmaller_again:
+	sub	rbx, 256 * 1048576
+	jnz	.trysmaller_attempt
+	jmp	.die
         ; syscall # into rax, args: rdi, rsi, rdx, r10, r8, r9
 calign
 .die:

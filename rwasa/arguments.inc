@@ -115,6 +115,7 @@ macro argbool s*, v* {
 	argcheck '-errlog', .argerrlog
 	argcheck '-errsyslog', .argerrsyslog
 	argcheck '-fastcgi', .argfastcgi
+	argcheck '-fastcgi_starts', .argfastcgi_starts
 	argcheck '-backpath', .argbackpath
 	argcheck '-vhost', .argvhost
 	argcheck '-sandbox', .argsandbox
@@ -501,6 +502,30 @@ calign
 	call	heap$free
 	jmp	.arg_next
 calign
+.argfastcgi_starts:
+	mov	rdi, r13
+	call	heap$free
+	cmp	qword [rbx+_list_size_ofs], 2
+	jb	.endofargs
+	add	r12d, 1
+	mov	rdi, rbx
+	call	list$pop_front
+	push	rax			; starts with
+	mov	rdi, rbx
+	call	list$pop_front
+	push	rax			; address
+	mov	rdi, [configs]
+	mov	rsi, [rdi+_list_last_ofs]
+	mov	rdi, [rsi+_list_valueofs]
+	mov	rsi, [rsp+8]
+	mov	rdx, rax
+	call	webservercfg$fastcgi_start_map
+	pop	rdi
+	call	heap$free
+	pop	rdi
+	call	heap$free
+	jmp	.arg_next
+calign
 .argbackpath:
 	mov	rdi, r13
 	call	heap$free
@@ -793,6 +818,7 @@ db	'Usage: rwasa [options...]',10,\
 	'    -errlog filename            Specify full filename for error logs',10,\
 	'    -errsyslog                  Send errors to syslog',10,\
 	'    -fastcgi endswith address   Add fastcgi handler (addr:host or /unixpath)',10,\
+	'    -fastcgi_starts with addr   Add fastcgi handler (addr:host or /unixpath)',10,\
 	'    -backpath address           Add backpath/upstream (addr:host or /unixpath)',10,\
 	'    -vhost directory            Add virtual hosting directory (full path)',10,\
 	'    -sandbox directory          Add global sandbox directory (full path)',10,\

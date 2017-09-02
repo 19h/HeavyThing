@@ -395,7 +395,7 @@ screen$new:
 	mov	rax, rbx
 	pop	rbx
 	epilog
-cleartext .statustext, 'sshtalk v1.16 ',0xa9,' 2015, 2016 2 Ton Digital'
+cleartext .statustext, 'sshtalk v1.19 ',0xa9,' 2015, 2016 2 Ton Digital'
 cleartext .buddylabel, 'Buddy'
 cleartext .buddystr, 'buddy'
 cleartext .onlinelabel, 'Status'

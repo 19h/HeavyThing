@@ -143,7 +143,7 @@ calign
 	mov	eax, syscall_exit
 	xor	edi, edi
 	syscall
-cleartext .banner, 'This is rwasa v1.16 ',0xa9,' 2015, 2016 2 Ton Digital. Author: Jeff Marrison',10,'A showcase piece for the HeavyThing library. Commercial support available',10,'Proudly made in Cooroy, Australia. More info: https://2ton.com.au/rwasa',10
+cleartext .banner, 'This is rwasa v1.19 ',0xa9,' 2015, 2016 2 Ton Digital. Author: Jeff Marrison',10,'A showcase piece for the HeavyThing library. Commercial support available',10,'Proudly made in Cooroy, Australia. More info: https://2ton.com.au/rwasa',10
 calign
 .forkfail:
 	mov	rdi, .err_forkfail

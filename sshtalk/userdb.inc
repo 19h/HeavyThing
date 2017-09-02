@@ -528,7 +528,7 @@ calign
 	; if we are running on the 2ton.com.au machine, or my local dev machine
 	; auto-add @Sysop to their buddy list
         mov     rdi, [uname$nodename]
-        mov     rsi, .hostname_slave
+        mov     rsi, .hostname_2ton
         call    string$starts_with
         push    rax
         mov     rdi, [uname$nodename]
@@ -551,7 +551,7 @@ calign
 	xor	eax, eax
 	pop	r13 r12 rbx
 	epilog
-cleartext .hostname_slave, 'slave.'
+cleartext .hostname_2ton, '2ton'
 cleartext .hostname_cdev, 'cdev'
 cleartext .sysop, '@Sysop'
 calign

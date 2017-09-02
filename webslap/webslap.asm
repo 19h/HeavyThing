@@ -158,7 +158,7 @@ calign
 	
 	jmp	master
 
-cleartext .greeting, 'This is WebSlap v1.16 ',0xa9,' 2015, 2016 2 Ton Digital. Author: Jeff Marrison',10,'A showcase piece for the HeavyThing library. Commercial support available',10,'Proudly made in Cooroy, Australia. More info: https://2ton.com.au/webslap',10
+cleartext .greeting, 'This is WebSlap v1.19 ',0xa9,' 2015, 2016 2 Ton Digital. Author: Jeff Marrison',10,'A showcase piece for the HeavyThing library. Commercial support available',10,'Proudly made in Cooroy, Australia. More info: https://2ton.com.au/webslap',10
 cleartext .msg_predns, 'Preemptive DNS queries in progress...'
 falign
 .predns_add:

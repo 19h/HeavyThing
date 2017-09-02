@@ -129,9 +129,9 @@ webservercfg_timerptr_ofs = io_base_size + 112
 webservercfg_backpath_ofs = io_base_size + 120			; heap$alloc'd socket address if set, null if not
 webservercfg_cachecontrol_ofs = io_base_size + 128		; override for the webserver_filecache_time config setting
 webservercfg_filestattime_ofs = io_base_size + 136		; override for the webserver_hotlist_statfreq config setting
-webservercfg_cachecontrolstr_ofs = io_base_size + 144		; override for string version of the Cache-Control header itself
+webservercfg_fastcgi_start_ofs = io_base_size + 144		; stringmap (of heap$alloc'd socket addresses)
 
-webservercfg_size = io_base_size + 144
+webservercfg_size = io_base_size + 156
 
 	; note: none of the io methods except for the timeout spot are used by the webservercfg object
 	; which is why they are all set to the io defaults
@@ -157,8 +157,9 @@ webservercfg_redirect_ofs = 88			; string, if set, overrides all other settings 
 webservercfg_cachecontrol_ofs = 96		; override for the webserver_filecache_time config setting
 webservercfg_filestattime_ofs = 104		; override for the webserver_hotlist_statfreq config setting
 webservercfg_backpath_ofs = 112			; heap$alloc'd socket address if set, null if not
+webservercfg$fastcgi_start_ofs = 120		; stringmap (of heap$alloc'd socket addresses)
 
-webservercfg_size = 120
+webservercfg_size = 128
 
 end if
 
@@ -283,13 +284,17 @@ webservercfg$new:
 	xor	edi, edi
 	call	stringmap$new
 	push	rax
+	xor	edi, edi
+	call	stringmap$new
+	push	rax
 	mov	edi, webservercfg_size
 	call	heap$alloc_clear
-	pop	rcx rdx rsi rdi
+	pop	r8 rcx rdx rsi rdi
 	mov	[rax+webservercfg_sandboxes_ofs], rdi
 	mov	[rax+webservercfg_indexfiles_ofs], rsi
 	mov	[rax+webservercfg_fastcgi_ofs], rdx
 	mov	[rax+webservercfg_funcmap_ofs], rcx
+	mov	[rax+webservercfg_fastcgi_start_ofs], r8
 	mov	qword [rax+webservercfg_filestattime_ofs], webserver_hotlist_statfreq
 	push	rax
 	mov	rdi, .indexhtml
@@ -377,6 +382,10 @@ webservercfg$new_copy:
 	mov	rdi, [r12+webservercfg_fastcgi_ofs]
 	mov	rsi, .stringheapcopy
 	mov	rdx, [rbx+webservercfg_fastcgi_ofs]
+	call	stringmap$foreach_arg
+	mov	rdi, [r12+webservercfg_fastcgi_start_ofs]
+	mov	rsi, .stringheapcopy
+	mov	rdx, [rbx+webservercfg_fastcgi_start_ofs]
 	call	stringmap$foreach_arg
 	mov	rdi, [r12+webservercfg_funcmap_ofs]
 	mov	rsi, .stringintcopy
@@ -510,9 +519,14 @@ webservercfg$destroy:
 	mov	rdi, [rbx+webservercfg_fastcgi_ofs]
 	mov	rsi, .stringstringfree		; note: stringstringfree does heap$free for both sides, which is fine for the fastcgi map as well
 	call	stringmap$clear
+	mov	rdi, [rbx+webservercfg_fastcgi_start_ofs]
+	mov	rsi, .stringstringfree		; note: stringstringfree does heap$free for both sides, which is fine for the fastcgi_start map as well
+	call	stringmap$clear
 	mov	rdi, [rbx+webservercfg_backpath_ofs]
 	call	.maybefree
 	mov	rdi, [rbx+webservercfg_fastcgi_ofs]
+	call	heap$free
+	mov	rdi, [rbx+webservercfg_fastcgi_start_ofs]
 	call	heap$free
 	mov	rdi, [rbx+webservercfg_funcmap_ofs]
 	mov	rsi, heap$free
@@ -946,6 +960,88 @@ calign
 end if
 
 
+if used webservercfg$fastcgi_start_map | defined include_everything
+	; three arguments: rdi == webservercfg object, rsi == url path starts with match string, rdx == string fastcgi address
+	; rsi == something like '/some/dir', such that if the request is https://example.com/some/dir/test/example?testing
+	; then the request will automatically be sent via fastcgi...
+	; fastcgi address can contain either an absolute pathname (unix fd), or if it doesn't begin with /, then
+	; it is assumed to be an IPv4 address:port
+falign
+webservercfg$fastcgi_start_map:
+	prolog	webservercfg$fastcgi_start_map
+	; our webservercfg_fastcgi_start_ofs is a stringmap for matching, and a heap$alloc'd block for the destination address
+	; and we compute the destination address here, so that during runtime, no such calcs are required
+	push	rbx r12 r13 r14 r15
+	mov	rbx, rdi
+	mov	rdi, rsi
+	mov	r13, rdx
+	call	string$copy
+	mov	r12, rax
+	mov	rdi, r13
+	mov	esi, 0
+	call	string$charat
+	cmp	eax, '/'
+	je	.unixaddr
+	; otherwise, make sure it has a :
+	mov	rdi, r13
+	mov	esi, ':'
+	call	string$indexof_charcode
+	cmp	rax, 0
+	jl	.unixaddr
+	mov	r15d, eax
+	mov	edi, sockaddr_in_size + 8
+	call	heap$alloc_clear
+	mov	r14, rax
+	mov	qword [rax], sockaddr_in_size
+	mov	rdi, r13
+	xor	esi, esi
+	mov	edx, r15d
+	call	string$substr
+	mov	rdi, r13
+	mov	esi, r15d
+	add	esi, 1
+	mov	rdx, -1
+	mov	r15, rax
+	call	string$substr
+	push	rax
+	mov	rdi, rax
+	call	string$to_unsigned
+	mov	rdi, [rsp]
+	mov	[rsp], rax
+	call	heap$free
+	pop	rdx
+	lea	rdi, [r14+8]
+	mov	rsi, r15
+	call	inet_addr
+	mov	rdi, r15
+	call	heap$free
+	mov	rdi, [rbx+webservercfg_fastcgi_start_ofs]
+	mov	rsi, r12
+	mov	rdx, r14
+	call	stringmap$insert_unique
+	pop	r15 r14 r13 r12 rbx
+	epilog
+calign
+.unixaddr:
+	mov	edi, sockaddr_un_size + 8
+	call	heap$alloc_clear
+	mov	r14, rax
+	mov	qword [rax], sockaddr_un_size
+	lea	rdi, [rax+8]
+	mov	rsi, r13
+	call	unix_addr
+	mov	rdi, [rbx+webservercfg_fastcgi_start_ofs]
+	mov	rsi, r12
+	mov	rdx, r14
+	call	stringmap$insert_unique
+	pop	r15 r14 r13 r12 rbx
+	epilog
+	
+end if
+
+
+
+
 if used webservercfg$backpath | defined include_everything
 	; two arguments: rdi == webservercfg object, rsi == string backpath address
 	; address can contain either an absolute pathname (unix fd), or if it doesn't begin with / then
@@ -1094,6 +1190,8 @@ globals
 {
 if used webservercfg$fastcgi_map & webserver_fastcgi_postprocess
 	webservercfg$fastcgiqueue	dq	0
+else if used webservercfg&fastcgi_start_map & webserver_fastcgi_postprocess
+	webservercfg$fastcgiqueue	dq	0
 else if defined include_everything
 	webservercfg$fastcgiqueue	dq	0
 end if
@@ -1136,6 +1234,9 @@ webservercfg$init:
 	mov	[webservercfg$hotmap], rax
 
 if used webservercfg$fastcgi_map & webserver_fastcgi_postprocess
+	call	list$new
+	mov	[webservercfg$fastcgiqueue], rax
+else if used webservercfg$fastcgi_start_map & webserver_fastcgi_postprocess
 	call	list$new
 	mov	[webservercfg$fastcgiqueue], rax
 else if defined include_everything
@@ -1929,8 +2030,48 @@ end if
 	mov	rax, r13
 	pop	r15 r14 r13 r12 rbx
 	epilog
+if used webservercfg$fastcgi_start_map | defined include_everything
+calign
+.indexfile_fastcgi_doit:
+	; restore rbp, call request
+	pop	rbp
+	call	.request
+	; let that be our return, free r15 and be done
+	mov	r13, rax
+	mov	rdi, r15
+	call	heap$free
+	mov	rax, r13
+	pop	r15 r14 r13 r12 rbx
+	epilog
+end if
 calign
 .indexfile:
+	; so before we deal with index file walking, if fastcgi_start is used, we need to check those first:
+if used webservercfg$fastcgi_start_map | defined include_everything
+	mov	rdi, [rbx+webservercfg_fastcgi_start_ofs]
+	cmp	qword [rdi+_avlofs_next], 0
+	je	.indexfile_nofastcgi_start
+	push	rbp
+	mov	rbp, [rdi+_avlofs_next]
+calign
+.indexfile_fastcgiwalk:
+	mov	rdi, [r13+url_path_ofs]
+	mov	rsi, [rbp+_avlofs_key]
+	call	string$starts_with
+	test	eax, eax
+	jnz	.indexfile_fastcgi_doit
+	mov	rbp, [rbp+_avlofs_next]
+	test	rbp, rbp
+	jnz	.indexfile_fastcgiwalk
+	; if we made it to here, no fastcgi_start matches were found
+	pop	rbp
+	; fallthrough to indexfile_nofastcgi_start...
+calign
+.indexfile_nofastcgi_start:
+	; fall straight through to .indexfile functionality.
+
+end if
+
 	; we have to iterate through our index files, testing each one until we get a non-null response from request
 	; so that we can walk the list without calling list$foreach, we smash rbp (which will of course render the
 	; gdb stackframe/framepointers rubbish if anything dies inside this handling loop)
@@ -1948,6 +2089,14 @@ calign
 	push	r15
 	mov	r15, rax
 
+	; this should be a complete and valid pathname, and to prevent multiple cascaded fastcgi handlers w/ index files
+	; swallowing when they shouldn't, we do a check here to see if it is legit
+	; TODO: cache the results of the stat/utf8 conversion here
+	mov	rdi, rax
+	call	file$mtime
+	test	rax, rax
+	jz	.indexfile_next
+
 	; concat our indexfile to our url's path, saving the url path
 	push	qword [r13+url_path_ofs]
 	mov	rdi, [r13+url_path_ofs]
@@ -1955,6 +2104,7 @@ calign
 	mov	[r13+url_user_ofs], rdi		; in the event we hand it off via fastcgi, it will use this to construct the "right" REQUEST_URI
 	call	string$concat
 	mov	[r13+url_path_ofs], rax
+
 	call	.request
 	test	rax, rax
 	jnz	.indexfile_complete
@@ -1963,6 +2113,7 @@ calign
 	mov	[r13+url_path_ofs], rsi
 	call	heap$free
 
+.indexfile_next:
 	mov	rdi, r15
 	call	heap$free
 	pop	r15
@@ -2053,6 +2204,7 @@ falign
 	; 2) underlying file must exist to pass it off
 	; since a fastcgi handler can be "pure" (and thus not really file based), I vote for option #1, let the fastcgi handler work out
 	; whether it is valid or not
+	; UPDATE 20160808: The exception here is for index files, e.g. requests that end with / ... in which case we DO check for them via stat/mtime
 	; so, our first order of business is to determine whether there _is_ a handler for it
 
 	; if a redirect string is present, deal with that alone
@@ -2099,6 +2251,27 @@ calign
 	jnz	.fastcgiwalk
 calign
 .dofilesystem:
+end if
+if used webservercfg$fastcgi_start_map | defined include_everything
+	; unlike the above endswith fastcgi mapping, this needs to check against r13 (the request url)'s path
+	; instead of the full pathname (which includes munged docroot, everything)
+	mov	rdi, [r12+webserver_config_ofs]
+	mov	rbx, [rdi+webservercfg_fastcgi_start_ofs]
+	cmp	qword [rbx+_avlofs_next], 0
+	je	.dofilesystem2
+	mov	rbx, [rbx+_avlofs_next]
+calign
+.fastcgiwalk2:
+	mov	rdi, [r13+url_path_ofs]
+	mov	rsi, [rbx+_avlofs_key]
+	call	string$starts_with
+	test	eax, eax
+	jnz	.fastcgi_doit_start
+	mov	rbx, [rbx+_avlofs_next]
+	test	rbx, rbx
+	jnz	.fastcgiwalk2
+calign
+.dofilesystem2:
 end if
 if used webservercfg$new_vhost | used webservercfg$new_sandbox | used webservercfg$host_sandbox | used webservercfg$set_vhost | defined include_everything
 
@@ -2683,7 +2856,55 @@ calign
 	; let the function's return be our return
 	ret
 end if
-if used webservercfg$fastcgi_map | defined include_everything
+if used webservercfg$fastcgi_map | used webservercfg$fastcgi_start_map | defined include_everything
+calign
+.fastcgi_doit_start:
+	; for starts_with mappings, we need to add PATH_INFO and PATH_TRANSLATED "fake headers" so that the fcgiclient
+	; can pass them on... and since the fcgiclient can't know what the starts_with matching was to begin with, we have to do it
+	; here instead and then fallthrough... remote-clients can't fake them due to our setting the headers here will overwrite them
+	; if the client did for some reason do that.
+	; so first up, PATH_INFO = everything _after_ our matched key from the url's path
+	mov	rdi, [r13+url_path_ofs]
+	mov	rsi, [rbx+_avlofs_key]		; the starts_with match
+	mov	rsi, [rsi]			; its length
+	mov	rdx, -1
+	call	string$substr
+	mov	rdi, r14
+	mov	rsi, .pathinfo
+	mov	rdx, rax
+	push	rax
+	call	mimelike$setheader_novaluecopy
+	; next up, PATH_TRANSLATED = DOCUMENT_ROOT + PATH_INFO
+	mov	rdi, r14
+	mov	rsi, .docrootstr
+	call	mimelike$getheader		; we know this one is valid
+	mov	rdi, rax
+	pop	rsi
+	call	string$concat
+	mov	rdi, r14
+	mov	rsi, .pathtranslated
+	mov	rdx, rax
+	call	mimelike$setheader_novaluecopy
+
+	; further, SCRIPT_NAME needs to be set to hte match that we did:
+	mov	rdi, r14
+	mov	rsi, .scriptname
+	mov	rdx, [rbx+_avlofs_key]
+	call	mimelike$setheader		; it has to copy this one
+
+	; last but not least, we need to set SCRIPT_FILENAME = DOCUMENT_ROOT + the starts_with match
+	mov	rdi, r14
+	mov	rsi, .docrootstr
+	call	mimelike$getheader		; we know this one is valid
+	mov	rdi, rax
+	mov	rsi, [rbx+_avlofs_key]		; the starts_with match
+	call	string$concat
+	mov	rdi, r14
+	mov	rsi, .scriptfilename
+	mov	rdx, rax
+	call	mimelike$setheader_novaluecopy
+
+	; fall through to fastcgi_doit
 calign
 .fastcgi_doit:
 	; [rbx+_avlofs_value] is our outbound fastcgi destination
@@ -2762,6 +2983,10 @@ calign
 end if
 cleartext .remoteaddr, 'REMOTE_ADDR'
 cleartext .remoteport, 'REMOTE_PORT'
+cleartext .pathinfo, 'PATH_INFO'
+cleartext .pathtranslated, 'PATH_TRANSLATED'
+cleartext .scriptname, 'SCRIPT_NAME'
+cleartext .scriptfilename, 'SCRIPT_FILENAME'
 
 end if
 
@@ -2884,16 +3109,20 @@ end if
 	mov	rdi, [rsp]
 	mov	[rsp], rax
 	call	heap$free
-	cmp	dword [rsp], 302
+	pop	rsi			; our status as an unsigned
+	cmp	esi, 200
+	je	.do_checkcontenttype
+	cmp	esi, 302
 	je	.check302
-	cmp	dword [rsp], 301
+	cmp	esi, 301
 	je	.check301
-	cmp	dword [rsp], 304
+	cmp	esi, 303
+	je	.check303
+	cmp	esi, 304
 	je	.do304
-	cmp	dword [rsp], 206
+	cmp	esi, 206
 	je	.do206
 	mov	rdi, [rbx+webserver_config_ofs]
-	pop	rsi
 	call	webservercfg$error
 	mov	rdi, r13
 	mov	r13, rax
@@ -2953,9 +3182,35 @@ calign
 	mov	rdi, r13
 	mov	rsi, .r302
 	call	mimelike$setpreface
+
+	; update: September 1st, 2016:
+	; the v1.18 modifications I did to fix a compressed 302 redirect
+	; had some unintended consequences, so to fix the situation further
+	; I removed that, and added the below section to the various handlers
+	; here... 
+
 	mov	rdi, r13
 	mov	rsi, .statusstr
 	call	mimelike$removeheader
+	mov	rdi, r13
+	mov	rsi, .lame_enc1
+	call	mimelike$removeheader
+	mov	rdi, r13
+	mov	rsi, .lame_enc2
+	call	mimelike$removeheader
+	mov	rdi, r13
+	mov	rsi, mimelike$contentencoding
+	call	mimelike$removeheader
+	mov	rdi, r13
+	mov	rsi, .lame_enc3
+	call	mimelike$removeheader
+	mov	rdi, r13
+	mov	rsi, .lame_enc4
+	call	mimelike$removeheader
+	mov	rdi, r13
+	mov	rsi, mimelike$transferencoding
+	call	mimelike$removeheader
+
 	mov	rdi, r13
 	mov	rsi, mimelike$contentlength
 	mov	rdx, .fivestr
@@ -2963,6 +3218,62 @@ calign
 	mov	rdi, r13
 	mov	rsi, .r302body
 	mov	edx, 5
+	call	mimelike$setbody
+	mov	rax, [rbx+webserver_request_ofs]
+	mov	rdi, rbx
+	mov	rsi, r13
+	mov	edx, [rax+mimelike_user_ofs]
+	; clear sentpartial
+	mov	dword [rbx+webserver_sentpartial_ofs], 0
+	call	webserver$sendresponse
+	test	eax, eax
+	jnz	.sentresponse_suicidal
+	; start up a new request timer, but only if sentpartial is 0
+	cmp	dword [rbx+webserver_sentpartial_ofs], 0
+	je	.return_newtimer
+	pop	r13 r12 rbx
+	epilog
+calign
+.check303:
+	mov	rdi, r13
+	mov	rsi, .locstr
+	call	mimelike$getheader
+	test	rax, rax
+	jz	.do502
+	; do a 303
+	mov	rdi, r13
+	mov	rsi, .r303
+	call	mimelike$setpreface
+
+	mov	rdi, r13
+	mov	rsi, .statusstr
+	call	mimelike$removeheader
+	mov	rdi, r13
+	mov	rsi, .lame_enc1
+	call	mimelike$removeheader
+	mov	rdi, r13
+	mov	rsi, .lame_enc2
+	call	mimelike$removeheader
+	mov	rdi, r13
+	mov	rsi, mimelike$contentencoding
+	call	mimelike$removeheader
+	mov	rdi, r13
+	mov	rsi, .lame_enc3
+	call	mimelike$removeheader
+	mov	rdi, r13
+	mov	rsi, .lame_enc4
+	call	mimelike$removeheader
+	mov	rdi, r13
+	mov	rsi, mimelike$transferencoding
+	call	mimelike$removeheader
+
+	mov	rdi, r13
+	mov	rsi, mimelike$contentlength
+	mov	rdx, .fivestr
+	call	mimelike$setheader
+	mov	rdi, r13
+	mov	rsi, .r303body
+	mov	edx, 9
 	call	mimelike$setbody
 	mov	rax, [rbx+webserver_request_ofs]
 	mov	rdi, rbx
@@ -2989,9 +3300,29 @@ calign
 	mov	rdi, r13
 	mov	rsi, .r301
 	call	mimelike$setpreface
+
 	mov	rdi, r13
 	mov	rsi, .statusstr
 	call	mimelike$removeheader
+	mov	rdi, r13
+	mov	rsi, .lame_enc1
+	call	mimelike$removeheader
+	mov	rdi, r13
+	mov	rsi, .lame_enc2
+	call	mimelike$removeheader
+	mov	rdi, r13
+	mov	rsi, mimelike$contentencoding
+	call	mimelike$removeheader
+	mov	rdi, r13
+	mov	rsi, .lame_enc3
+	call	mimelike$removeheader
+	mov	rdi, r13
+	mov	rsi, .lame_enc4
+	call	mimelike$removeheader
+	mov	rdi, r13
+	mov	rsi, mimelike$transferencoding
+	call	mimelike$removeheader
+
 	mov	rdi, r13
 	mov	rsi, mimelike$contentlength
 	mov	rdx, .fivestr
@@ -3114,11 +3445,19 @@ cleartext .r200, 'HTTP/1.1 200 She',0x27,'ll be apples'
 cleartext .r206, 'HTTP/1.1 206 Just a slice of the whole pie'
 cleartext .r301, 'HTTP/1.1 301 She nicked off'
 cleartext .r302, 'HTTP/1.1 302 Look here mate'
+cleartext .r303, 'HTTP/1.1 303 Check this out'
 cleartext .r304, 'HTTP/1.1 304 Same same mate'
 cleartext .php_lame_ctype, 'Content-type'
+cleartext .lame_enc1, 'Content-encoding'
+cleartext .lame_enc2, 'content-encoding'
+cleartext .lame_enc3, 'Transfer-encoding'
+cleartext .lame_enc4, 'transfer-encoding'
 cleartext .locstr, 'Location'
 .r302body:
 	db	'Moved'
+dalign
+.r303body:
+	db	'See Other'
 
 end if
 
@@ -5547,6 +5886,25 @@ calign
 	mov	[rsp], rax		; the url object
 	call	heap$free
 	; so now, [rsp] == url object, [rbx+webserver_request_ofs] == mimelike object
+
+	; update 20160808: so that we "correctly" respond to absoluteURI forms,
+	; the descending code from this point forward relies on the Host: header
+	; being present, which is redundant in the case of an absoluteURI being
+	; received in the GET/POST/HEAD request...
+	; so...
+	; if the request object has a host header already, we'll leave it, otherwise
+	; we'll set one from the url_host_ofs of the fully qualified request object
+	mov	rdi, [rbx+webserver_request_ofs]
+	mov	rsi, .host
+	call	mimelike$getheader
+	test	rax, rax
+	jnz	.processrequest		; proceed, one exists.
+	; otherwise, we'll set one
+	mov	rcx, [rsp]
+	mov	rdi, [rbx+webserver_request_ofs]
+	mov	rsi, .host
+	mov	rdx, [rcx+url_host_ofs]
+	call	mimelike$setheader
 	jmp	.processrequest
 cleartext .httpslashonedot, 'HTTP/1.'
 cleartext .host, 'Host'
@@ -5601,6 +5959,9 @@ calign
 	mov	rdi, [rbx+webserver_accum_ofs]
 	cmp	qword [rdi+buffer_length_ofs], webserver_maxrequest
 	ja	.bloatedheader			; will drop us just the same
+	; we need to reset our timer so that our post upload doesn't timeout prematurely:
+	mov	rdi, rbx
+	call	webserver$newtimer
 calign
 .needmore:
 	mov	dword [rbx+webserver_needmore_ofs], 1

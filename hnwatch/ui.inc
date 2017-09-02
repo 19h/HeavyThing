@@ -82,7 +82,9 @@ ui$init:
 	mov	rdi, rax
 	mov	rsi, .label_rank
 	mov	edx, 4
-	mov	ecx, tui_textalign_left
+	; update 20160808: Klaus Alexander Seistrup reckons it'll look nicer right aligned:
+	; mov	ecx, tui_textalign_left
+	mov	ecx, tui_textalign_right
 	mov	r8, .prop_rank
 	call	tui_datagrid$nvaddproperty_i
 	; next column is dynamic width title
@@ -359,7 +361,7 @@ cleartext .stat_show, 'Show'
 cleartext .stat_job, 'Job'
 cleartext .stat_reset, 'Reset'
 
-cleartext .copyright, 'hnwatch v1.16 ',0xa9,' 2015, 2016 2 Ton Digital'
+cleartext .copyright, 'hnwatch v1.19 ',0xa9,' 2015, 2016 2 Ton Digital'
 
 cleartext .item_format_space, ' '
 cleartext .item_format_quadspace, '    '
@@ -1152,6 +1154,13 @@ cleartext .ago_cat, ' ago'
 	test	r14d, r14d
 	cmovz	r12, r13
 	; textify it (good for asks, etc as they can also be HTML)
+
+	; update 20160809: for Ask HN (and probably others) where no text is specified
+	; r12 can end up being 0 here...
+	test	r12, r12
+	jz	.skip_line3
+	; end update 20160809
+
 	mov	rdi, r12
 	call	textify
 	; get the third child from the item screen, which we know is tui_text

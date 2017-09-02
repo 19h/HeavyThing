@@ -188,7 +188,7 @@ _start:
 	; now, if we are running on the 2ton.com.au machine, or my local dev machine
 	; spit out 2ton-specific labels for the next two
 	mov	rdi, [uname$nodename]
-	mov	rsi, .hostname_slave
+	mov	rsi, .hostname_2ton
 	call	string$starts_with
 	push	rax
 	mov	rdi, [uname$nodename]
@@ -306,7 +306,7 @@ falign
 	call	qword [rdx+tui_vappendchild]
 	ret
 
-cleartext .s1, 'sshtalk v1.16 ',0xa9,' 2015, 2016 2 Ton Digital'
+cleartext .s1, 'sshtalk v1.19 ',0xa9,' 2015, 2016 2 Ton Digital'
 cleartext .s2, 'proudly made in Cooroy, Australia'
 cleartext .s3, 'A showcase piece for the HeavyThing library'
 cleartext .s4, '100% wire-level secure ssh talk facility'
@@ -318,7 +318,7 @@ cleartext .s9, 'ssh-rsa,aes256-cbc,hmac-sha2-256,zlib[@openssh.com]'
 cleartext .s10, 'Author: Jeff Marrison, jeff@2ton.com.au'
 cleartext .s10_2ton, 'Author: Jeff Marrison, jeff@2ton.com.au, and via this sshtalk: @Sysop'
 cleartext .s11_2ton, 'Online 6a-8a Mon-Fri AEST, may or may not respond, don',0x27,'t take it personally :)'
-cleartext .hostname_slave, 'slave.'
+cleartext .hostname_2ton, '2ton'
 cleartext .hostname_cdev, 'cdev'
 cleartext .tickertext, 'Best viewed with a 6 pack of beer, ha! ... size: 135x35 min, Mac OS X: iTerm2 or Terminal.app, Winblows: SecureCRT (ANSI colors enabled, rows/cols adjust, lucida console), Linux: all linux terms seem happy...'
 cleartext .errorstring, '/etc/ssh host keys and/or contents error.'

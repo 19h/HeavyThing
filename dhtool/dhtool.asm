@@ -349,7 +349,7 @@ dalign
 dalign
 .pem_postface db '-----END DH PARAMETERS-----',10
 .pem_postfacelen = $ - .pem_postface
-cleartext .banner, 'This is dhtool v1.16 ',0xa9,' 2015, 2016 2 Ton Digital. Author: Jeff Marrison',10,'A showcase piece for the HeavyThing library. Commercial support available',10,'Proudly made in Cooroy, Australia. More info: https://2ton.com.au/dhtool',10
+cleartext .banner, 'This is dhtool v1.19 ',0xa9,' 2015, 2016 2 Ton Digital. Author: Jeff Marrison',10,'A showcase piece for the HeavyThing library. Commercial support available',10,'Proudly made in Cooroy, Australia. More info: https://2ton.com.au/dhtool',10
 
 
 falign

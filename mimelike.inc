@@ -884,6 +884,14 @@ else
         mov     [rsi], eax
 end if
 }
+
+	; update 20160809: our x1024 bytes per header pre-reservation in
+	; the destination buffers in certain (albeit rare) circumstances
+	; is wholly insufficient and can cause (when it overruns) memory
+	; corruption... so we leave the x1024 pre-reserve, but put the
+	; rest of the noreserves as an optional conditional. In certain
+	; circumstances, performance can be improved by enablign the
+	; noreserve additions.
 falign
 .headers:
 	mov	rdx, [rbx+mimelike_headers_ofs]
@@ -900,7 +908,11 @@ falign
 	mov	rsi, [rbx+mimelike_preface_ofs]
 	test	rsi, rsi
 	jz	.nopreface
+if defined mimelike_optimistic_headersizes
 	call	buffer$append_rawstring_noreserve
+else
+	call	buffer$append_rawstring
+end if
 	headers_addheadersep
 calign
 .nopreface:
@@ -1352,7 +1364,11 @@ end if
 	push	rsi rdx
 	mov	rsi, rdi
 	mov	rdi, rdx
+if defined mimelike_optimistic_headersizes
 	call	buffer$append_rawstring_noreserve
+else
+	call	buffer$append_rawstring
+end if
 	mov	rdi, [rsp]
 if string_bits = 32
         mov     rax, [.headerlinesep+8]
@@ -1371,7 +1387,11 @@ else
 end if
 	mov	rdi, [rsp]
 	mov	rsi, [rsp+8]
+if defined mimelike_optimistic_headersizes
 	call	buffer$append_rawstring_noreserve
+else
+	call	buffer$append_rawstring
+end if
 	pop	rdi
 if string_bits = 32
         mov     rax, [.headersep+8]
@@ -1415,7 +1435,11 @@ calign
 	je	.headerline_done_nolinebreak
 	mov	rdi, r12
 	mov	rsi, mimelike$setcookie
+if defined mimelike_optimistic_headersizes
 	call	buffer$append_rawstring_noreserve
+else
+	call	buffer$append_rawstring
+end if
 	mov	rdi, r12
 if string_bits = 32
         mov     rax, [.headerlinesep+8]
@@ -1440,7 +1464,11 @@ end if
 	push	rax
 	mov	rdi, r12
 	mov	rsi, rax
+if defined mimelike_optimistic_headersizes
 	call	buffer$append_rawstring_noreserve
+else
+	call	buffer$append_rawstring
+end if
 	pop	rdi
 	call	heap$free
 	; now, walk the remaining items, and either start a new header line, or add a ', ' and keep going
@@ -1477,10 +1505,18 @@ calign
 	; otherwise, add a ', ' and then our string, and jump to outer
 	mov	rdi, r12
 	mov	rsi, .commaspace
+if defined mimelike_optimistic_headersizes
 	call	buffer$append_rawstring_noreserve
+else
+	call	buffer$append_rawstring
+end if
 	mov	rdi, r12
 	mov	rsi, [rsp]
+if defined mimelike_optimistic_headersizes
 	call	buffer$append_rawstring_noreserve
+else
+	call	buffer$append_rawstring
+end if
         mov     rdi, r12
 if string_bits = 32
         mov     rax, [.headersep+8]
@@ -1567,7 +1603,11 @@ calign
 	pop	rbx
 	mov	rsi, rdi
 	mov	rdi, [rsp]
+if defined mimelike_optimistic_headersizes
 	call	buffer$append_rawstring_noreserve
+else
+	call	buffer$append_rawstring
+end if
 	mov	rdi, [rsp]
 if string_bits = 32
         mov     rax, [.headerlinesep+8]
@@ -1586,7 +1626,11 @@ else
 end if
 	mov	rdi, [rsp]
 	mov	rsi, [rsp+8]
+if defined mimelike_optimistic_headersizes
 	call	buffer$append_rawstring_noreserve
+else
+	call	buffer$append_rawstring
+end if
 	pop	rdi
 if string_bits = 32
         mov     rax, [.headersep+8]
@@ -2698,7 +2742,7 @@ calign
 	call	string$substring
 	mov	[rsp+16], rax
 	mov	rdi, rbx
-	mov	rsi, [rsp+8]
+	mov	rsi, [rsp+8]			; setboundary assumes ownership of this
 	mov	rdx, rax
 	call	mimelike$setboundary
 	mov	rdi, [rsp+16]
@@ -2728,7 +2772,7 @@ calign
 	call	string$substring		; content type substring
 	mov	[rsp+16], rax
 	mov	rdi, rbx
-	mov	rsi, [rsp+8]
+	mov	rsi, [rsp+8]			; setboundary assumes ownership of this
 	mov	rdx, rax
 	call	mimelike$setboundary
 	mov	rdi, [rsp+16]
@@ -2932,8 +2976,12 @@ calign
 .multipart_boundary_doreturn:
 	mov	rdi, [rsp]
 	call	heap$free
-	mov	rdi, [rsp+8]
-	call	heap$free
+
+	; double-free fixup: 20160808: mimelike$setboundary assumed ownership of this:
+	; mov	rdi, [rsp+8]
+	; call	heap$free
+	; end fixup
+
 	mov	rdi, [rsp+32]
 	call	heap$free
 	jmp	.normal_return
@@ -2942,9 +2990,13 @@ calign
 	; free our UTF8 first
 	mov	rdi, [rsp]
 	call	heap$free
+
+	; double-free fixup: 20160808: mimelike$setboundary assumed ownership of this
 	; free the boundary string itself
-	mov	rdi, [rsp+8]
-	call	heap$free
+	; mov	rdi, [rsp+8]
+	; call	heap$free
+	; end fixup
+
 	; destroy our mimelike object? if we didn't find a boundary
 	; this mime object is invalid, so hmmm, we could be more
 	; tolerant, and return it as-is without further parsing I spose
@@ -3470,7 +3522,7 @@ calign
 	call	string$substring
 	mov	[rsp+16], rax
 	mov	rdi, rbx
-	mov	rsi, [rsp+8]
+	mov	rsi, [rsp+8]			; setboundary assumes ownership of this
 	mov	rdx, rax
 	call	mimelike$setboundary
 	mov	rdi, [rsp+16]
@@ -3500,7 +3552,7 @@ calign
 	call	string$substring		; content type substring
 	mov	[rsp+16], rax
 	mov	rdi, rbx
-	mov	rsi, [rsp+8]
+	mov	rsi, [rsp+8]			; setboundary assumes ownership of this
 	mov	rdx, rax
 	call	mimelike$setboundary
 	mov	rdi, [rsp+16]
@@ -3704,8 +3756,12 @@ calign
 .multipart_boundary_doreturn:
 	mov	rdi, [rsp]
 	call	heap$free
-	mov	rdi, [rsp+8]
-	call	heap$free
+
+	; double-free fixup: 20160808: mimelike$setboundary assumed ownership of this
+	; mov	rdi, [rsp+8]
+	; call	heap$free
+	; end fixup
+
 	mov	rdi, [rsp+32]
 	call	heap$free
 	jmp	.normal_return
@@ -3714,9 +3770,13 @@ calign
 	; free our UTF8 first
 	mov	rdi, [rsp]
 	call	heap$free
+
+	; double-free fixup: 20160808: mimelike$setboundary assumed ownership of this
 	; free the boundary string itself
-	mov	rdi, [rsp+8]
-	call	heap$free
+	; mov	rdi, [rsp+8]
+	; call	heap$free
+	; end fixup
+
 	; destroy our mimelike object? if we didn't find a boundary
 	; this mime object is invalid, so hmmm, we could be more
 	; tolerant, and return it as-is without further parsing I spose

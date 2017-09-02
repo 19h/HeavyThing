@@ -1,5 +1,5 @@
 #!/bin/bash
-echo "Assembling all HeavyThing v1.14 binaries..."
+echo "Assembling all HeavyThing v1.19 binaries..."
 for p in {dhtool,hnwatch,rwasa,sshtalk,toplip,webslap}; do
 	echo "$p..."
 	cd $p
@@ -21,7 +21,7 @@ for p in {bigint_tune,make_dh_static,mersenneprimetest}; do
 done
 cd ..
 cd examples
-for p in {echo,hello_world,minigzip,multicore_echo,sha256,sshecho,tlsecho,tuieffects,tuimatrix}; do
+for p in {echo,hello_world,libsodium,minigzip,multicore_echo,sha256,sha3,simple_socket,sshecho,tlsecho,tuieffects,tuimatrix}; do
 	echo "examples/$p..."
 	cd $p
 	fasm -m 262144 $p.asm && ld -o $p $p.o

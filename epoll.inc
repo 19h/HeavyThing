@@ -1226,12 +1226,6 @@ epoll$init:
 	call	unsignedmap$new
 	mov	[_epoll_timemap], rax
 	add	rsp, 152
-if used epoll$outbound_hostname | used dns$lookup_ipv4 | defined include_everything
-	call	dns$init
-end if
-if used tui_render$updatedisplaylist | used tui_render$layoutchanged | used tui_render$nvrender | defined include_everything
-	call	tui_lock$init
-end if
 	mov	edi, 1
 	call	unsignedmap$new
 	mov	[_epoll_serviceable], rax
@@ -1239,6 +1233,12 @@ if epoll_unixconnect_forgiving & used epoll$outbound
 	mov	edi, 1		; insert order very important here
 	call	unsignedmap$new
 	mov	[_epoll_unixconnect_map], rax
+end if
+if used epoll$outbound_hostname | used dns$lookup_ipv4 | defined include_everything
+	call	dns$init
+end if
+if used tui_render$updatedisplaylist | used tui_render$layoutchanged | used tui_render$nvrender | defined include_everything
+	call	tui_lock$init
 end if
 if used epoll$inbound_delayed | defined include_everything
 	cmp	qword [_epoll_inbound_delayed_first], 0

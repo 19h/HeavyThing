@@ -1,3 +1,89 @@
+September 13th, 2016: v1.19
+	examples/simple_socket:
+		Added DNS-based and IPv4-based simple outbound socket
+		example code.
+	examples/sha3:
+		Added SHA3-Keccak example (is a copy/modify of sha256.asm)
+		Note here the example outputs SHA3-256.
+	examples/libsodium:
+		Added libsodium_compat example code for crypto_box_easy and
+		crypto_box_open_easy.
+	webserver.inc: (and rwasa indirectly)
+		hahah, well, v1.18 FastCGI redirect fix had an unintended
+		consequence of dropping Cookies from FastCGI when they were
+		presented during a redirect. Reverted to similar pre-1.18
+		code and kept the fix for the Fossil compressed redirect.
+	maxmind.inc:
+		Fixed memory leak in the destroy function.
+	* version update to v1.19
+August 30th, 2016: v1.18
+	webserver.inc: (and rwasa indirectly)
+		Fixed a bug introduced in 1.17 w/ absoluteURI requests.
+		Modified FastCGI redirect handling to fixup a Fossil-related
+		bug when dealing with compressed 302 redirection bodies.
+	maxmind.inc:
+		Added maxmind.com's GeoLite2 CSV parser and fast lookup tool
+	ht.inc:
+		Added maxmind.inc to the list of includes
+	* version update to v1.18
+August 10th, 2016: v1.17
+	-- been busy doing paid work of late, but slowly accumulating changes
+	-- this release includes rwasa stability fixes for a wider range of
+	-- server environments, and is now running all of the flatassembler.net
+	-- domains (which are all phpBB, old-school CGI, etc)... some of the
+	-- bug fixes below related to rwasa were discovered during the
+	-- migration. Thanks to all over on the board!
+	rwasa/arguments.inc:
+		Added -fastcgi_starts option so that fastcgi mapping can occur
+		on starts-with URL paths instead of only endswith (@JohnFound)
+	webserver.inc: (and rwasa indirectly)
+		Fixed an issue with large POST premature timeouts.
+		Fixed a multiple-FastCGI handler + indexfiles issue, added
+		stat/st_mtime checking for the would-be indexfile prior to
+		handoff.
+		Added 303 response parsing to fastcgi_result.
+		Added fastcgi_starts option so that fastcgi mapping can occur
+		on starts-with URL paths instead of only endswith (@JohnFound)
+		Fixed absoluteURI requests (though see rwasa docs for sandbox
+		potential side effects).
+	mimelike.inc: (and rwasa indirectly)
+		Fixed a nasty double-free w/ multipart/form-data POST
+		requests, discovered after rwasa started running
+		board.flatassembler.net. Thanks to all there for their
+		patience while this one was located.
+		Modified compose to remove noreserve buffer appends.
+	fcgiclient.inc: (and rwasa indirectly)
+		Fixed an issue with GET requests and FCGI_stdio.
+	epoll_dns.inc:
+		Fixed an issue with resolv.conf parser and comments, IPv6.
+		Thanks to Klaus Alexander Seistrup for reporting this in!
+	epoll.inc:
+		Fixed an initialisation order issue related to DNS issue.
+	hnwatch/ui.inc:
+		Changed the rank/Pos column in the list view to right-align,
+		Klaus Alexander Seistrup requested, maybe it does look better.
+		Fixed a segfault possibility when no text exists for Ask HN,
+		and possibly others' item display.
+	debug_macros.inc:
+		Added useful debugging macros.
+	heap.inc:
+		Much more aggressive attempt at initial heap immovable size.
+	sshtalk/sshtalk.asm:
+	sshtalk/userdb.inc:
+		Changed hostname for 2ton since we moved sshtalk.
+	aesxts.inc:
+		Added vanilla AES-XTS support.
+	mtree.inc:
+		Added mapped u64/u64 multikey RBtree support.
+	mtree_aesxts.inc:
+		Added encrypted map version of mtree.
+	fileshadow.inc:
+		Added support for shadowed file modifications.
+	ht.inc:
+		Added above new files to its include set.
+	tui_form.inc:
+		Fixed ontab/onshifttab focus validity check bug.
+	* version update to v1.17
 February 1st, 2016: v1.16
 	tui_text.inc:
 	sshtalk:

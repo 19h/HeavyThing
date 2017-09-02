@@ -200,51 +200,64 @@ dns$read_config:
 	cmp	rax, [_dns_resolve_mtime]
 	je	.nothingtodo
 	mov	[_dns_resolve_mtime], rax
+
 	mov	rdi, .resolvfile
-	call	file$to_string_cstr
-	push	r12			; our offset
-	push	rax			; [rsp] == our new string
-	xor	r12d, r12d
+	call	file$to_buffer_cstr
+	test	rax, rax
+	jz	.nothingtodo
+
+	push	rbx r12
+	mov	rbx, rax
 calign
-.confsearch:
-	mov	rdi, [rsp]
-	mov	rsi, .nstr
-	mov	rdx, r12
-	call	string$indexof_ofs
-	cmp	rax, 0
-	jl	.confdone
-	add	rax, 10			; length(nameserver)
-	mov	r12, rax		; save the index
-	mov	rdi, [rsp]
-	mov	rsi, rax
-	movzx	ecx, word [rdi+rax*2+8]
-	call	string$skip_whitespace
-	mov	r12, rax		; save the index
-	mov	rsi, rax
-	; rdi still intact from skip_whitespace (DANGER)
-	call	string$next_whitespace
-	mov	rdx, rax		; end of the substring
-	mov	rsi, r12		; start of the substring
-	; rdi still intact from next_whitespace (DANGER)
-	cmp	rax, r12
-	je	.confdone
-	call	string$substring
-	push	rax
+.confloop:
+	mov	rdi, rbx
+	mov	esi, 1			; consume leading empty lines
+	call	buffer$has_more_lines
+	test	eax, eax
+	jz	.confdone
+	mov	rdi, rbx
+	call	buffer$nextline
+	mov	r12, rax
 	mov	rdi, rax
+	xor	esi, esi
+	call	string$skip_whitespace
+	mov	rdi, r12
+	mov	esi, eax
+	call	string$charat
+	cmp	eax, '#'
+	je	.confskip
+	mov	rdi, r12
+	mov	rsi, .nstr
+	call	string$indexof
+	cmp	rax, 0
+	jl	.confskip
+	add	rax, 10
+	mov	rdi, r12
+	mov	rsi, rax
+	call	string$skip_whitespace
+	mov	rdi, r12
+	mov	rsi, rax
+	mov	rdx, -1
+	call	string$substr
+	mov	rdi, r12
+	mov	r12, rax
+	call	heap$free
+	mov	rdi, r12
 	call	dns$nameserver
-	pop	rdi
-	call	heap$free		; free the substring
-	jmp	.confsearch
+.confskip:
+	mov	rdi, r12
+	call	heap$free
+	jmp	.confloop
 calign
 .confdone:
-	mov	rdi, [rsp]
-	call	heap$free
-	pop	rcx r12
+	mov	rdi, rbx
+	call	buffer$destroy
+	pop	r12 rbx
 	epilog
 calign
 .nothingtodo:
 	epilog
-calign
+dalign
 .resolvfile:
 	db	'/etc/resolv.conf',0
 cleartext	.nstr, 'nameserver'

@@ -75,9 +75,16 @@ fcgiclient$new:
 	call	mimelike$getheader
 	test	rax, rax
 	jz	.nodocroot
+
+	mov	r15, rax
+	; if the SCRIPT_FILENAME fake header already exists, skip the concat:
+	mov	rdi, r13
+	mov	rsi, .scriptfilename
+	call	mimelike$getheader
+	test	rax, rax
+	jnz	.scriptfilename_alreadyset
 	; set scriptfilename to that + url_path_ofs
-	push	rax
-	mov	rdi, rax
+	mov	rdi, r15
 	mov	rsi, [r12+url_path_ofs]
 	call	string$concat
 	push	rax
@@ -86,10 +93,11 @@ fcgiclient$new:
 	call	.addparam
 	pop	rdi
 	call	heap$free
-	pop	rax
+calign
+.scriptfilename_set:
+	; r15 is the docroot when we get here:
 	; its length _should_ be less than 128 bytes, and most likely doesn't contain weirdness
-	mov	r15, rax
-	mov	rdi, rax
+	mov	rdi, r15
 	call	string$utf8_length
 	cmp	eax, 128
 	jae	.bigdocroot
@@ -109,6 +117,15 @@ fcgiclient$new:
 	mov	rsi, .docrootstr
 	call	mimelike$removeheader
 	jmp	.nodocroot
+calign
+.scriptfilename_alreadyset:
+	mov	rdi, .scriptfilename
+	mov	rsi, rax
+	call	.addparam
+	mov	rdi, r13
+	mov	rsi, .scriptfilename
+	call	mimelike$removeheader
+	jmp	.scriptfilename_set
 calign
 .bigdocroot:
 	bswap	eax
@@ -132,10 +149,47 @@ calign
 	call	mimelike$removeheader
 calign
 .nodocroot:
+	; do similar for PATH_INFO, PATH_TRANSLATED
+	mov	rdi, r13
+	mov	rsi, .pathinfo
+	call	mimelike$getheader
+	test	rax, rax
+	jz	.nopathinfo
+
+	mov	rdi, .pathinfo
+	mov	rsi, rax
+	call	.addparam
+	mov	rdi, r13
+	mov	rsi, .pathinfo
+	call	mimelike$removeheader
+calign
+.nopathinfo:
+	mov	rdi, r13
+	mov	rsi, .pathtranslated
+	call	mimelike$getheader
+	test	rax, rax
+	jz	.nopathtranslated
+
+	mov	rdi, .pathtranslated
+	mov	rsi, rax
+	call	.addparam
+	mov	rdi, r13
+	mov	rsi, .pathtranslated
+	call	mimelike$removeheader
+calign
+.nopathtranslated:
 	; add the rest of our url goods
+	mov	rdi, r13
+	mov	rsi, .scriptname
+	call	mimelike$getheader
+	test	rax, rax
+	jnz	.scriptname_present
+	; if it was not present, just add it as the url_path_ofs
 	mov	rdi, .scriptname
 	mov	rsi, [r12+url_path_ofs]
 	call	.addparam
+calign
+.scriptname_set:
 	mov	rdi, .documenturi
 	mov	rsi, [r12+url_path_ofs]
 	call	.addparam
@@ -152,6 +206,16 @@ calign
 	mov	rdi, .querystring
 	call	.addparam_novalue
 	jmp	.requesturidone
+calign
+.scriptname_present:
+
+	mov	rdi, .scriptname
+	mov	rsi, rax
+	call	.addparam
+	mov	rdi, r13
+	mov	rsi, .scriptname
+	call	mimelike$removeheader
+	jmp	.scriptname_set
 calign
 .withquerystring:
 	mov	rdi, rsi
@@ -379,6 +443,7 @@ calign
 	test	r13, r13
 	jnz	.postdataloop
 	pop	r13 r12
+if defined FCGI_stdio_broken_version
 	; and an empty one to indicate we are done
 	mov	rdi, r14
 	mov	esi, 0x01000501		; version 1 type fcgi stdin (5), request id 1
@@ -389,7 +454,22 @@ calign
 	mov	rax, rbx
 	pop	r15 r14 r13 r12 rbx
 	epilog
+else
+calign
+.nopostdata:
+	; and an empty one to indicate we are done
+	mov	rdi, r14
+	mov	esi, 0x01000501		; version 1 type fcgi stdin (5), request id 1
+	call	buffer$append_qword
+	; buffer is complete
+	mov	rax, rbx
+	pop	r15 r14 r13 r12 rbx
+	epilog
+	
+end if
 cleartext .docrootstr, 'DOCUMENT_ROOT'
+cleartext .pathinfo, 'PATH_INFO'
+cleartext .pathtranslated, 'PATH_TRANSLATED'
 cleartext .scriptfilename, 'SCRIPT_FILENAME'
 cleartext .scriptname, 'SCRIPT_NAME'
 cleartext .documenturi, 'DOCUMENT_URI'
